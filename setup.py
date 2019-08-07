@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from remrpc import version
 
 AUTHOR = 'Xiongfei Shi'
@@ -35,7 +35,7 @@ setup(
     keywords=KEYWORDS,
     maintainer=AUTHOR,
     maintainer_email=AUTHOR_EMAIL,
-    py_modules=['remrpc'],
+    packages=find_packages(),
     url='https://github.com/shixiongfei/remrpc',
     version=version
 )
