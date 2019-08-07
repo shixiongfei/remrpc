@@ -1,6 +1,12 @@
 # remrpc
 REdis Msgpack RPC
 
+### Installation
+
+```
+pip install remrpc
+```
+
 ### Example
 
 ```
