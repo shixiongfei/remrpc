@@ -1,27 +1,29 @@
-# remrpc
-REdis Msgpack RPC
+# -*- coding:utf-8 -*-
 
-### Example
-
-```
 import redis
 import remrpc
+
 
 def add(a, b):
     return a + b
 
+
 def sub(a, b):
     return a - b
+
 
 def multi():
     return 'Hello', 'World'
 
+
 def kvfunc(k='key', v='val'):
     return '{0} = {1}'.format(k, v)
+
 
 class CallObject:
     def __call__(self, name):
         return 'Hello {0}'.format(name)
+
 
 if __name__ == "__main__":
     pool = redis.ConnectionPool(host='127.0.0.1',
@@ -54,4 +56,3 @@ if __name__ == "__main__":
 
     rpc1.close()
     rpc2.close()
-```
