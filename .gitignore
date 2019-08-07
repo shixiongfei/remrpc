@@ -2,3 +2,4 @@ __pycache__
 build
 dist
 remrpc.egg-info
+.vscode

@@ -8,7 +8,7 @@ import redis
 import msgpack
 from .uniqueid import UniqueID
 
-__version = (0, 1, 0)
+__version = (0, 1, 1)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -155,7 +155,7 @@ class RPC:
                     break
                 self._do_message(rpcmsg['channel'], rpcmsg['data'])
         except redis.exceptions.ConnectionError as e:
-            raise ExceptionRPC('Redis Connection Error: {0}'.format(e))
+            logger.error('Redis Connection Error: {0}'.format(e))
 
     def _do_publish(self, channel, message):
         self._redis.publish(channel, message)

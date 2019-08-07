@@ -1,8 +1,15 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os.path
 from setuptools import setup, find_packages
 from remrpc import version
+
+def read(fname):
+    try:
+        return open(os.path.join(os.path.dirname(__file__), fname)).read()
+    except IOError:
+        return ''
 
 AUTHOR = 'Xiongfei Shi'
 AUTHOR_EMAIL = 'jenson.shixf@gmail.com'
@@ -18,6 +25,7 @@ CLASSIFIERS = [
 ]
 
 DESCRIPTION = 'Lightweight RPC on Redis using Msgpack.'
+LONG_DESCRIPTION = read('README.rst')
 KEYWORDS = ['Msgpack', 'Redis', 'RPC']
 
 INSTALL_REQUIRES = [
@@ -31,6 +39,7 @@ setup(
     author_email=AUTHOR_EMAIL,
     classifiers=CLASSIFIERS,
     description=DESCRIPTION,
+    long_description=LONG_DESCRIPTION,
     install_requires=INSTALL_REQUIRES,
     keywords=KEYWORDS,
     maintainer=AUTHOR,
