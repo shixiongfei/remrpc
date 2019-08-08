@@ -21,7 +21,7 @@ class UniqueID:
         self.lasttime = 0
 
     def base36encode(self, integer):
-        chars = '0123456789abcdefghijklmnopqrstuvwxyz'
+        chars = "0123456789abcdefghijklmnopqrstuvwxyz"
 
         sign = '-' if integer < 0 else ''
         integer = abs(integer)

@@ -69,12 +69,12 @@ class _Invoke:
             reply = iter(self._invoker._queue.get(timeout=self._timeout))
         except gevent.queue.Empty:
             raise TimedoutRPC(
-                'Call function {0} is timedout.'.format(self._func_name))
+                "Call function {0} is timedout.".format(self._func_name))
 
         op = next(reply, None)
 
         if op is None:
-            raise CallErrorRPC(ERROR_RETVAL, 'Get return value failed')
+            raise CallErrorRPC(ERROR_RETVAL, "Get return value failed")
 
         if op == 'error':
             code, detail = next(reply)
@@ -143,7 +143,7 @@ class RPC:
                         break
                     self._do_message(rpcmsg['channel'], rpcmsg['data'])
             except redis.exceptions.ConnectionError as e:
-                logger.error('Redis Connection Error: {0}'.format(e))
+                logger.error("Redis Connection Error: {0}".format(e))
 
             gevent.sleep(0.001)
 
@@ -170,13 +170,13 @@ class RPC:
                 results = next(payload, None)
                 self._do_reply(serial, results)
             elif op == 'error':
-                errinfo = next(payload, (ERROR_PROTOCOL, 'Protocol error'))
+                errinfo = next(payload, (ERROR_PROTOCOL, "Protocol error"))
                 self._do_error(serial, errinfo)
 
         except msgpack.UnpackException as e:
-            logger.error('Protocol unpack error: {0}'.format(e))
+            logger.error("Protocol unpack error: {0}".format(e))
         except msgpack.UnpackValueError as e:
-            logger.error('Protocol unpack error: {0}'.format(e))
+            logger.error("Protocol unpack error: {0}".format(e))
 
     def _reply(self, serial, channel, results):
         if channel is None:
@@ -197,7 +197,7 @@ class RPC:
     def _do_call(self, serial, channel, func_name, args, kwargs):
         if func_name not in self._invokers:
             self._error(serial, channel, ERROR_UNREGISTERED,
-                        'Function not registered')
+                        "Function not registered")
             return
 
         try:

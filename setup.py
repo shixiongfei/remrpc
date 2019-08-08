@@ -10,24 +10,24 @@ def read(fname):
     try:
         return open(os.path.join(os.path.dirname(__file__), fname)).read()
     except IOError:
-        return ''
+        return ""
 
 
-AUTHOR = 'Xiongfei Shi'
-AUTHOR_EMAIL = 'jenson.shixf@gmail.com'
+AUTHOR = "Xiongfei Shi"
+AUTHOR_EMAIL = "jenson.shixf@gmail.com"
 
 CLASSIFIERS = [
-    'Intended Audience :: Developers',
-    'License :: OSI Approved :: Apache Software License',
-    'Operating System :: OS Independent',
-    'Programming Language :: Python',
-    'Topic :: Software Development :: Libraries :: Python Modules',
-    'Topic :: Software Development :: Object Brokering',
-    'Topic :: System :: Distributed Computing',
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Object Brokering",
+    "Topic :: System :: Distributed Computing",
 ]
 
-DESCRIPTION = 'Lightweight RPC on Redis using Msgpack.'
-LONG_DESCRIPTION = read('README.rst')
+DESCRIPTION = "Lightweight RPC on Redis using Msgpack."
+LONG_DESCRIPTION = read("README.rst")
 KEYWORDS = ['Msgpack', 'Redis', 'RPC']
 
 INSTALL_REQUIRES = [
@@ -48,6 +48,6 @@ setup(
     maintainer=AUTHOR,
     maintainer_email=AUTHOR_EMAIL,
     packages=find_packages(),
-    url='https://github.com/shixiongfei/remrpc',
+    url="https://github.com/shixiongfei/remrpc",
     version=version
 )
