@@ -20,6 +20,10 @@ def kvfunc(k='key', v='val'):
     return '{0} = {1}'.format(k, v)
 
 
+def nonreturn():
+    print('Non Return')
+
+
 class CallObject:
     def __call__(self, name):
         return 'Hello {0}'.format(name)
@@ -37,6 +41,7 @@ if __name__ == "__main__":
     rpc1.register(multi)
     rpc1.register(kvfunc)
     rpc1.register(CallObject(), 'sayhello')
+    rpc1.register(nonreturn)
 
     try:
         invoker = rpc2.invoker('channel:rpc1')
@@ -46,7 +51,8 @@ if __name__ == "__main__":
         print(invoker.multi())
         print(invoker.kvfunc(k='KEY', v='VALUE'))
         print(invoker.sayhello('World'))
-        # print(invoker.nonexistent())
+        print(invoker.nonreturn())
+        print(invoker.nonexistent())
     except remrpc.TimedoutRPC as e:
         print('> RPC Timedout: {0}'.format(e))
     except remrpc.CallErrorRPC as e:

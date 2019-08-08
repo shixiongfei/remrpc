@@ -8,7 +8,7 @@ import redis
 import msgpack
 from .uniqueid import UniqueID
 
-__version = (0, 1, 1)
+__version = (0, 1, 2)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -102,7 +102,7 @@ class _Updater(Thread):
     def run(self):
         while not self._quit:
             self._rpc._do_update()
-            time.sleep(0.01)
+            time.sleep(0.001)
 
     def quit(self):
         self._quit = True
@@ -127,9 +127,9 @@ class RPC:
             self.close()
 
     def close(self):
+        self._updater.quit()
         self._pubsub.unsubscribe()
         self._pubsub.close()
-        self._updater.quit()
 
     def register(self, func, name=None):
         if callable(func):
@@ -208,6 +208,8 @@ class RPC:
         if func_name not in self._invokers:
             self._error(serial, channel, ERROR_UNREGISTERED,
                         'Function not registered')
+            return
+
         try:
             results = self._invokers[func_name](*args, **kwargs)
             self._reply(serial, channel, results)
