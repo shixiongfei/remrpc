@@ -1,14 +1,16 @@
 # -*- coding:utf-8 -*-
 
-from threading import Thread
-from queue import Queue, Empty
-import logging
-import time
-import redis
-import msgpack
-from .uniqueid import UniqueID
+import gevent.monkey
+gevent.monkey.patch_socket()
 
-__version = (0, 1, 2)
+import gevent                   # noqa: E402
+import logging                  # noqa: E402
+import redis                    # noqa: E402
+import msgpack                  # noqa: E402
+from .uniqueid import UniqueID  # noqa: E402
+
+
+__version = (0, 1, 3)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -65,7 +67,7 @@ class _Invoke:
 
         try:
             reply = iter(self._invoker._queue.get(timeout=self._timeout))
-        except Empty:
+        except gevent.queue.Empty:
             raise TimedoutRPC(
                 'Call function {0} is timedout.'.format(self._func_name))
 
@@ -87,26 +89,10 @@ class _Invoker:
         self._rpc = rpc
         self._channel = channel
         self._timeout = timeout
-        self._queue = Queue()
+        self._queue = gevent.queue.Queue()
 
     def __getattr__(self, attr):
         return _Invoke(self, attr, self._timeout)
-
-
-class _Updater(Thread):
-    def __init__(self, rpc):
-        Thread.__init__(self)
-        self._rpc = rpc
-        self._quit = False
-
-    def run(self):
-        while not self._quit:
-            self._rpc._do_update()
-            time.sleep(0.001)
-
-    def quit(self):
-        self._quit = True
-        self.join()
 
 
 class RPC:
@@ -114,22 +100,23 @@ class RPC:
         self._invokers = {}
         self._pending = {}
         self._timeout = timeout
+        self._quit = False
         self._unid = UniqueID()
         self._channel = channel
         self._redis = redis_conn
         self._pubsub = self._redis.pubsub(ignore_subscribe_messages=True)
         self._pubsub.subscribe(self._channel)
-        self._updater = _Updater(self)
-        self._updater.start()
+        self._updater = gevent.spawn(self._do_update)
 
     def __del__(self):
-        if self._updater.is_alive():
-            self.close()
+        self.close()
 
     def close(self):
-        self._updater.quit()
-        self._pubsub.unsubscribe()
-        self._pubsub.close()
+        if not self._quit:
+            self._quit = True
+            self._updater.join()
+            self._pubsub.unsubscribe()
+            self._pubsub.close()
 
     def register(self, func, name=None):
         if callable(func):
@@ -148,14 +135,17 @@ class RPC:
         return _Invoker(self, channel, self._timeout)
 
     def _do_update(self):
-        try:
-            while True:
-                rpcmsg = self._pubsub.get_message()
-                if rpcmsg is None:
-                    break
-                self._do_message(rpcmsg['channel'], rpcmsg['data'])
-        except redis.exceptions.ConnectionError as e:
-            logger.error('Redis Connection Error: {0}'.format(e))
+        while not self._quit:
+            try:
+                while True:
+                    rpcmsg = self._pubsub.get_message()
+                    if rpcmsg is None:
+                        break
+                    self._do_message(rpcmsg['channel'], rpcmsg['data'])
+            except redis.exceptions.ConnectionError as e:
+                logger.error('Redis Connection Error: {0}'.format(e))
+
+            gevent.sleep(0.001)
 
     def _do_publish(self, channel, message):
         self._redis.publish(channel, message)
@@ -224,6 +214,5 @@ class RPC:
 
     def _do_return(self, serial, retval):
         queue = self._pending.pop(serial)
-
         if queue is not None:
             queue.put(retval, block=False)

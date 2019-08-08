@@ -33,6 +33,7 @@ KEYWORDS = ['Msgpack', 'Redis', 'RPC']
 INSTALL_REQUIRES = [
     'redis',
     'msgpack',
+    'gevent',
 ]
 
 setup(
