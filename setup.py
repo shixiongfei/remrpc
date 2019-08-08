@@ -5,11 +5,13 @@ import os.path
 from setuptools import setup, find_packages
 from remrpc import version
 
+
 def read(fname):
     try:
         return open(os.path.join(os.path.dirname(__file__), fname)).read()
     except IOError:
         return ''
+
 
 AUTHOR = 'Xiongfei Shi'
 AUTHOR_EMAIL = 'jenson.shixf@gmail.com'
