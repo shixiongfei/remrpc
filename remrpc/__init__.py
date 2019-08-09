@@ -1,16 +1,14 @@
 # -*- coding:utf-8 -*-
 
-import gevent.monkey
-gevent.monkey.patch_socket()
-
-import gevent                   # noqa: E402
-import logging                  # noqa: E402
-import redis                    # noqa: E402
-import msgpack                  # noqa: E402
-from .uniqueid import UniqueID  # noqa: E402
+import gevent
+import gevent.queue
+import logging
+import redis
+import msgpack
+from .uniqueid import UniqueID
 
 
-__version = (0, 1, 5)
+__version = (0, 1, 6)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
