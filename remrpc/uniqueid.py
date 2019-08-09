@@ -17,7 +17,7 @@ class UniqueID:
 
     def __init__(self, additional=None):
         additional = additional or math.floor(random.random() * 10000)
-        self.additional = (additional & 0x1FFF) << 10
+        self.additional = (int(additional) & 0x1FFF) << 10
         self.counter = 0
         self.lasttime = 0
 

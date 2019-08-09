@@ -30,11 +30,15 @@ class CallObject:
 
 
 if __name__ == "__main__":
-    pool = redis.ConnectionPool(host="127.0.0.1",
-                                port=6379,
-                                password="123456")
-    rpc1 = remrpc.RPC(redis.Redis(connection_pool=pool), "channel:rpc1")
-    rpc2 = remrpc.RPC(redis.Redis(connection_pool=pool), "channel:rpc2")
+    try:
+        pool = redis.ConnectionPool(host="127.0.0.1",
+                                    port=6379,
+                                    password="123456")
+        rpc1 = remrpc.RPC(redis.Redis(connection_pool=pool), "channel:rpc1")
+        rpc2 = remrpc.RPC(redis.Redis(connection_pool=pool), "channel:rpc2")
+    except redis.exceptions.ConnectionError as e:
+        print("Redis connect error: {0}".format(e))
+        exit(0)
 
     rpc1.register(add)
     rpc1.register(sub)

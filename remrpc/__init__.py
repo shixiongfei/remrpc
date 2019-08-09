@@ -10,7 +10,7 @@ import msgpack                  # noqa: E402
 from .uniqueid import UniqueID  # noqa: E402
 
 
-__version = (0, 1, 4)
+__version = (0, 1, 5)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -112,11 +112,14 @@ class RPC:
         self.close()
 
     def close(self):
-        if not self._quit:
-            self._quit = True
-            self._updater.join()
-            self._pubsub.unsubscribe()
-            self._pubsub.close()
+        try:
+            if not self._quit:
+                self._quit = True
+                self._updater.join()
+                self._pubsub.unsubscribe()
+                self._pubsub.close()
+        except Exception:
+            return
 
     def register(self, func, name=None):
         if callable(func):
