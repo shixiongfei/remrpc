@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 
+import gevent
 import math
 import time
 import random
@@ -40,9 +41,9 @@ class UniqueID:
             self.counter += 1
 
             if self.counter > 1023:
-                time.sleep(1.0 / 1000.0)
                 self.counter = 0
-                now = int(time.time() * 1000)
+                gevent.sleep(0.001)
+                return self.next()
         else:
             self.counter = 0
 

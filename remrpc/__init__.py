@@ -10,7 +10,7 @@ import msgpack                  # noqa: E402
 from .uniqueid import UniqueID  # noqa: E402
 
 
-__version = (0, 1, 3)
+__version = (0, 1, 4)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
