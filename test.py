@@ -17,7 +17,7 @@ def multi():
 
 
 def kvfunc(k="key", v="val"):
-    return '{0} = {1}'.format(k, v)
+    return "{0} = {1}".format(k, v)
 
 
 def nonreturn():
