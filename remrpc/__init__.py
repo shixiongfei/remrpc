@@ -3,12 +3,13 @@
 import gevent
 import gevent.queue
 import logging
+import traceback
 import redis
 import msgpack
 from .uniqueid import UniqueID
 
 
-__version = (0, 1, 6)
+__version = (0, 1, 7)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -204,8 +205,9 @@ class RPC:
         try:
             results = self._invokers[func_name](*args, **kwargs)
             self._reply(serial, channel, results)
-        except TypeError as e:
-            self._error(serial, channel, ERROR_CALLFAILED, str(e))
+        except TypeError:
+            self._error(serial, channel, ERROR_CALLFAILED,
+                        traceback.format_exc())
 
     def _do_reply(self, serial, results):
         self._do_return(serial, ('reply', results))

@@ -60,7 +60,7 @@ if __name__ == "__main__":
     except remrpc.TimedoutRPC as e:
         print("> RPC Timedout: {0}".format(e))
     except remrpc.CallErrorRPC as e:
-        print("> RPC Call Error: {0}".format(e))
+        print("> RPC Call Error ({0}): {1}".format(e.code, e.message))
     except remrpc.ExceptionRPC as e:
         print("> RPC Exception: {0}".format(e))
 
