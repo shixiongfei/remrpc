@@ -9,7 +9,7 @@ import msgpack
 from .uniqueid import UniqueID
 
 
-__version = (0, 1, 8)
+__version = (0, 1, 9)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -52,6 +52,7 @@ class _Invoke:
         self._invoker = invoker
         self._func_name = func_name
         self._timeout = timeout
+        self._queue = gevent.queue.Queue()
 
     def __call__(self, *args, **kwargs):
         serial = self._invoker._rpc._unid.next()
@@ -61,12 +62,13 @@ class _Invoke:
             self._func_name, args, kwargs
         ], use_bin_type=True)
 
-        self._invoker._rpc._pending[serial] = self._invoker._queue
+        self._invoker._rpc._pending[serial] = self._queue
         self._invoker._rpc._do_publish(self._invoker._channel, payload)
 
         try:
-            reply = iter(self._invoker._queue.get(timeout=self._timeout))
+            reply = iter(self._queue.get(timeout=self._timeout))
         except gevent.queue.Empty:
+            self._invoker._rpc._pending.pop(serial)
             raise TimedoutRPC(
                 "Call function {0} is timedout.".format(self._func_name))
 
@@ -88,7 +90,6 @@ class _Invoker:
         self._rpc = rpc
         self._channel = channel
         self._timeout = timeout
-        self._queue = gevent.queue.Queue()
 
     def __getattr__(self, attr):
         return _Invoke(self, attr, self._timeout)
@@ -216,12 +217,11 @@ class RPC:
         self._do_return(serial, ('error', errinfo))
 
     def _do_return(self, serial, retval):
-        if serial not in self._pending:
-            raise CallErrorRPC(
-                ERROR_RETVAL,
+        if serial in self._pending:
+            queue = self._pending.pop(serial)
+            if queue is not None:
+                queue.put(retval, block=False)
+        else:
+            logger.warning(
                 "Returns {0} serial {1} is not found.".format(retval, serial)
             )
-
-        queue = self._pending.pop(serial)
-        if queue is not None:
-            queue.put(retval, block=False)
