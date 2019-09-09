@@ -9,7 +9,7 @@ import msgpack
 from .uniqueid import UniqueID
 
 
-__version = (0, 1, 7)
+__version = (0, 1, 8)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -216,6 +216,12 @@ class RPC:
         self._do_return(serial, ('error', errinfo))
 
     def _do_return(self, serial, retval):
+        if serial not in self._pending:
+            raise CallErrorRPC(
+                ERROR_RETVAL,
+                "Returns {0} serial {1} is not found.".format(retval, serial)
+            )
+
         queue = self._pending.pop(serial)
         if queue is not None:
             queue.put(retval, block=False)
