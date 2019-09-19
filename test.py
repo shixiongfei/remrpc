@@ -47,16 +47,23 @@ if __name__ == "__main__":
     rpc1.register(CallObject(), 'sayhello')
     rpc1.register(nonreturn)
 
-    try:
-        invoker = rpc2.invoker("channel:rpc1")
+    invoker1 = rpc1.invoker("channel:rpc2")
+    invoker2 = rpc2.invoker("channel:rpc1")
 
-        print(invoker.add(1, 2))
-        print(invoker.sub(9, 5))
-        print(invoker.multi())
-        print(invoker.kvfunc(k="KEY", v="VALUE"))
-        print(invoker.sayhello("World"))
-        print(invoker.nonreturn())
-        print(invoker.nonexistent())
+    def x2(x):
+        return invoker2.add(x, x)
+
+    rpc2.register(x2)
+
+    try:
+        print(invoker1.x2(3))
+        print(invoker2.add(1, 2))
+        print(invoker2.sub(9, 5))
+        print(invoker2.multi())
+        print(invoker2.kvfunc(k="KEY", v="VALUE"))
+        print(invoker2.sayhello("World"))
+        print(invoker2.nonreturn())
+        print(invoker2.nonexistent())
     except remrpc.TimedoutRPC as e:
         print("> RPC Timedout: {0}".format(e))
     except remrpc.CallErrorRPC as e:

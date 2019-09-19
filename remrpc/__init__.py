@@ -1,7 +1,8 @@
 # -*- coding:utf-8 -*-
 
 import gevent
-import gevent.queue
+import gevent.pool
+import gevent.event
 import logging
 import traceback
 import redis
@@ -9,7 +10,7 @@ import msgpack
 from .uniqueid import UniqueID
 
 
-__version = (0, 1, 9)
+__version = (0, 1, 10)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -52,7 +53,7 @@ class _Invoke:
         self._invoker = invoker
         self._func_name = func_name
         self._timeout = timeout
-        self._queue = gevent.queue.Queue()
+        self._event = gevent.event.AsyncResult()
 
     def __call__(self, *args, **kwargs):
         serial = self._invoker._rpc._unid.next()
@@ -62,15 +63,16 @@ class _Invoke:
             self._func_name, args, kwargs
         ], use_bin_type=True)
 
-        self._invoker._rpc._pending[serial] = self._queue
+        self._invoker._rpc._pending[serial] = self._event
         self._invoker._rpc._do_publish(self._invoker._channel, payload)
 
         try:
-            reply = iter(self._queue.get(timeout=self._timeout))
-        except gevent.queue.Empty:
+            reply = iter(self._event.get(timeout=self._timeout))
+        except gevent.timeout.Timeout:
             self._invoker._rpc._pending.pop(serial)
             raise TimedoutRPC(
-                "Call function {0} is timedout.".format(self._func_name))
+                "Call function {0} is timedout.".format(self._func_name)
+            )
 
         op = next(reply, None)
 
@@ -96,7 +98,7 @@ class _Invoker:
 
 
 class RPC:
-    def __init__(self, redis_conn, channel, timeout=3.0):
+    def __init__(self, redis_conn, channel, timeout=3.0, cosize=100):
         self._invokers = {}
         self._pending = {}
         self._timeout = timeout
@@ -106,7 +108,8 @@ class RPC:
         self._redis = redis_conn
         self._pubsub = self._redis.pubsub(ignore_subscribe_messages=True)
         self._pubsub.subscribe(self._channel)
-        self._updater = gevent.spawn(self._do_update)
+        self._pool = gevent.pool.Pool(cosize)
+        self._updater = self._pool.spawn(self._do_update)
 
     def __del__(self):
         self.close()
@@ -168,7 +171,9 @@ class RPC:
                 func_name = next(payload, '')
                 args = next(payload, [])
                 kwargs = next(payload, {})
-                self._do_call(serial, channel, func_name, args, kwargs)
+                self._pool.spawn(
+                    self._do_call, serial, channel, func_name, args, kwargs
+                ).start()
             elif op == 'reply':
                 results = next(payload, None)
                 self._do_reply(serial, results)
@@ -185,30 +190,34 @@ class RPC:
         if channel is None:
             return
 
-        payload = msgpack.packb(['reply', serial, results],
-                                use_bin_type=True)
+        payload = msgpack.packb(
+            ['reply', serial, results], use_bin_type=True
+        )
         self._do_publish(channel, payload)
 
     def _error(self, serial, channel, code, detail):
         if channel is None:
             return
 
-        payload = msgpack.packb(['error', serial, (code, detail)],
-                                use_bin_type=True)
+        payload = msgpack.packb(
+            ['error', serial, (code, detail)], use_bin_type=True
+        )
         self._do_publish(channel, payload)
 
     def _do_call(self, serial, channel, func_name, args, kwargs):
         if func_name not in self._invokers:
-            self._error(serial, channel, ERROR_UNREGISTERED,
-                        "Function not registered")
+            self._error(
+                serial, channel, ERROR_UNREGISTERED, "Function not registered"
+            )
             return
 
         try:
             results = self._invokers[func_name](*args, **kwargs)
             self._reply(serial, channel, results)
         except TypeError:
-            self._error(serial, channel, ERROR_CALLFAILED,
-                        traceback.format_exc())
+            self._error(
+                serial, channel, ERROR_CALLFAILED, traceback.format_exc()
+            )
 
     def _do_reply(self, serial, results):
         self._do_return(serial, ('reply', results))
@@ -218,9 +227,9 @@ class RPC:
 
     def _do_return(self, serial, retval):
         if serial in self._pending:
-            queue = self._pending.pop(serial)
-            if queue is not None:
-                queue.put(retval, block=False)
+            event = self._pending.pop(serial)
+            if event is not None:
+                event.set(retval)
         else:
             logger.warning(
                 "Returns {0} serial {1} is not found.".format(retval, serial)
