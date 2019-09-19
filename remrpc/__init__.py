@@ -10,7 +10,7 @@ import msgpack
 from .uniqueid import UniqueID
 
 
-__version = (0, 1, 10)
+__version = (0, 1, 11)
 __version__ = version = '.'.join(map(str, __version))
 
 '''
@@ -118,7 +118,7 @@ class RPC:
         try:
             if not self._quit:
                 self._quit = True
-                self._updater.join()
+                self._pool.join()
                 self._pubsub.unsubscribe()
                 self._pubsub.close()
         except Exception:
