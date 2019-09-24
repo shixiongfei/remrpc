@@ -48,57 +48,48 @@ class CallErrorRPC(Exception):
         self.message = detail
 
 
-class _Invoke:
-    def __init__(self, invoker, func_name, timeout):
-        self._invoker = invoker
-        self._func_name = func_name
-        self._timeout = timeout
-        self._event = gevent.event.AsyncResult()
-
-    def __call__(self, *args, **kwargs):
-        serial = self._invoker._rpc._unid.next()
-
-        payload = msgpack.packb([
-            'call', serial, self._invoker._rpc._channel,
-            self._func_name, args, kwargs
-        ], use_bin_type=True)
-
-        self._invoker._rpc._pending[serial] = self._event
-        self._invoker._rpc._do_publish(self._invoker._channel, payload)
-
-        try:
-            reply = iter(self._event.get(timeout=self._timeout))
-        except gevent.timeout.Timeout:
-            self._invoker._rpc._pending.pop(serial)
-            raise TimedoutRPC(
-                "Call function {0} is timedout.".format(self._func_name)
-            )
-
-        op = next(reply, None)
-
-        if op is None:
-            raise CallErrorRPC(ERROR_RETVAL, "Get return value failed")
-
-        if op == 'error':
-            code, detail = next(reply)
-            raise CallErrorRPC(code, detail)
-
-        if op == 'reply':
-            return next(reply, None)
-
-
 class _Invoker:
     def __init__(self, rpc, channel, timeout):
         self._rpc = rpc
         self._channel = channel
         self._timeout = timeout
 
-    def __getattr__(self, attr):
-        return _Invoke(self, attr, self._timeout)
+    def __getattr__(self, fun):
+        event = gevent.event.AsyncResult()
+
+        def invoke(*args, **kwargs):
+            serial = self._rpc._unid.next()
+
+            payload = msgpack.packb([
+                'call', serial, self._rpc._channel, fun, args, kwargs
+            ], use_bin_type=True)
+
+            self._rpc._pending[serial] = event
+            self._rpc._do_publish(self._channel, payload)
+
+            try:
+                reply = iter(event.get(timeout=self._timeout))
+            except gevent.timeout.Timeout:
+                self._rpc._pending.pop(serial)
+                raise TimedoutRPC("Call function {0} is timedout.".format(fun))
+
+            op = next(reply, None)
+
+            if op is None:
+                raise CallErrorRPC(ERROR_RETVAL, "Get return value failed")
+
+            if op == 'error':
+                code, detail = next(reply)
+                raise CallErrorRPC(code, detail)
+
+            if op == 'reply':
+                return next(reply, None)
+
+        return invoke
 
 
 class RPC:
-    def __init__(self, redis_conn, channel, timeout=3.0, cosize=100):
+    def __init__(self, redis_conn, channel, timeout=5.0, cosize=100):
         self._invokers = {}
         self._pending = {}
         self._timeout = timeout
@@ -109,7 +100,7 @@ class RPC:
         self._pubsub = self._redis.pubsub(ignore_subscribe_messages=True)
         self._pubsub.subscribe(self._channel)
         self._pool = gevent.pool.Pool(cosize)
-        self._updater = self._pool.spawn(self._do_update)
+        self._updater = self._pool.spawn(self._do_update).start()
 
     def __del__(self):
         self.close()
@@ -141,6 +132,16 @@ class RPC:
         return _Invoker(self, channel, self._timeout)
 
     def _do_update(self):
+        def redis_reconnect():
+            try:
+                self._pubsub = self._redis.pubsub(
+                    ignore_subscribe_messages=True
+                )
+                self._pubsub.subscribe(self._channel)
+            except redis.exceptions.ConnectionError:
+                return False
+            return True
+
         while not self._quit:
             try:
                 while True:
@@ -149,12 +150,18 @@ class RPC:
                         break
                     self._do_message(rpcmsg['channel'], rpcmsg['data'])
             except redis.exceptions.ConnectionError as e:
-                logger.error("Redis Connection Error: {0}".format(e))
+                if not redis_reconnect():
+                    logger.error("Redis PubSub Error: {0}".format(e))
+                    gevent.sleep(0.2)
+                    continue
 
             gevent.sleep(0.001)
 
     def _do_publish(self, channel, message):
-        self._redis.publish(channel, message)
+        try:
+            self._redis.publish(channel, message)
+        except redis.exceptions.ConnectionError as e:
+            logger.error("Redis Publish Error: {0}".format(e))
 
     def _do_message(self, channel, message):
         try:
@@ -176,24 +183,14 @@ class RPC:
                 ).start()
             elif op == 'reply':
                 results = next(payload, None)
-                self._do_reply(serial, results)
+                self._do_return(serial, ('reply', results))
             elif op == 'error':
                 errinfo = next(payload, (ERROR_PROTOCOL, "Protocol error"))
-                self._do_error(serial, errinfo)
-
+                self._do_return(serial, ('error', errinfo))
         except msgpack.UnpackException as e:
             logger.error("Protocol unpack error: {0}".format(e))
         except msgpack.UnpackValueError as e:
             logger.error("Protocol unpack error: {0}".format(e))
-
-    def _reply(self, serial, channel, results):
-        if channel is None:
-            return
-
-        payload = msgpack.packb(
-            ['reply', serial, results], use_bin_type=True
-        )
-        self._do_publish(channel, payload)
 
     def _error(self, serial, channel, code, detail):
         if channel is None:
@@ -213,17 +210,18 @@ class RPC:
 
         try:
             results = self._invokers[func_name](*args, **kwargs)
-            self._reply(serial, channel, results)
+
+            if channel is None:
+                return
+
+            payload = msgpack.packb(
+                ['reply', serial, results], use_bin_type=True
+            )
+            self._do_publish(channel, payload)
         except TypeError:
             self._error(
                 serial, channel, ERROR_CALLFAILED, traceback.format_exc()
             )
-
-    def _do_reply(self, serial, results):
-        self._do_return(serial, ('reply', results))
-
-    def _do_error(self, serial, errinfo):
-        self._do_return(serial, ('error', errinfo))
 
     def _do_return(self, serial, retval):
         if serial in self._pending:
