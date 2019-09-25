@@ -134,10 +134,11 @@ class RPC:
     def _do_update(self):
         def redis_reconnect():
             try:
-                self._pubsub = self._redis.pubsub(
+                pubsub = self._redis.pubsub(
                     ignore_subscribe_messages=True
                 )
-                self._pubsub.subscribe(self._channel)
+                pubsub.subscribe(self._channel)
+                self._pubsub = pubsub
             except redis.exceptions.ConnectionError:
                 return False
             return True
@@ -164,6 +165,17 @@ class RPC:
             logger.error("Redis Publish Error: {0}".format(e))
 
     def _do_message(self, channel, message):
+        def do_return(serial, retval):
+            if serial in self._pending:
+                event = self._pending.pop(serial)
+                if event is not None:
+                    event.set(retval)
+            else:
+                logger.warning(
+                    "Returns {0} serial {1} is not found.".format(
+                        retval, serial)
+                )
+
         try:
             payload = iter(msgpack.unpackb(message, raw=False))
             op = next(payload, None)
@@ -183,29 +195,26 @@ class RPC:
                 ).start()
             elif op == 'reply':
                 results = next(payload, None)
-                self._do_return(serial, ('reply', results))
+                do_return(serial, ('reply', results))
             elif op == 'error':
                 errinfo = next(payload, (ERROR_PROTOCOL, "Protocol error"))
-                self._do_return(serial, ('error', errinfo))
+                do_return(serial, ('error', errinfo))
         except msgpack.UnpackException as e:
             logger.error("Protocol unpack error: {0}".format(e))
         except msgpack.UnpackValueError as e:
             logger.error("Protocol unpack error: {0}".format(e))
 
-    def _error(self, serial, channel, code, detail):
-        if channel is None:
-            return
-
-        payload = msgpack.packb(
-            ['error', serial, (code, detail)], use_bin_type=True
-        )
-        self._do_publish(channel, payload)
-
     def _do_call(self, serial, channel, func_name, args, kwargs):
+        def do_error(code, detail):
+            if channel is None:
+                return
+
+            payload = msgpack.packb(['error', serial, (code, detail)],
+                                    use_bin_type=True)
+            self._do_publish(channel, payload)
+
         if func_name not in self._invokers:
-            self._error(
-                serial, channel, ERROR_UNREGISTERED, "Function not registered"
-            )
+            do_error(ERROR_UNREGISTERED, "Function not registered")
             return
 
         try:
@@ -214,21 +223,8 @@ class RPC:
             if channel is None:
                 return
 
-            payload = msgpack.packb(
-                ['reply', serial, results], use_bin_type=True
-            )
+            payload = msgpack.packb(['reply', serial, results],
+                                    use_bin_type=True)
             self._do_publish(channel, payload)
         except TypeError:
-            self._error(
-                serial, channel, ERROR_CALLFAILED, traceback.format_exc()
-            )
-
-    def _do_return(self, serial, retval):
-        if serial in self._pending:
-            event = self._pending.pop(serial)
-            if event is not None:
-                event.set(retval)
-        else:
-            logger.warning(
-                "Returns {0} serial {1} is not found.".format(retval, serial)
-            )
+            do_error(ERROR_CALLFAILED, traceback.format_exc())
