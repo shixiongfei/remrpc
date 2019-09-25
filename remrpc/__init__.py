@@ -89,7 +89,7 @@ class _Invoker:
 
 
 class RPC:
-    def __init__(self, redis_conn, channel, timeout=5.0, cosize=100):
+    def __init__(self, redis_conn, channel, timeout=3.0, cosize=100):
         self._invokers = {}
         self._pending = {}
         self._timeout = timeout
